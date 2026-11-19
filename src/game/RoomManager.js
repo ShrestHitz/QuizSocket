@@ -52,11 +52,14 @@ class RoomManager {
   }
 
   getRoom(roomId) {
-    return this.rooms.get(roomId);
+    if (!roomId) return null;
+    const cleanId = String(roomId).replace(/\D/g, '').trim();
+    return this.rooms.get(cleanId);
   }
 
   joinRoom(roomId, playerName, avatar, socketId) {
-    const room = this.rooms.get(roomId);
+    const cleanId = String(roomId || '').replace(/\D/g, '').trim();
+    const room = this.rooms.get(cleanId);
     if (!room) {
       return { success: false, error: "Quiz room not found. Check the 6-digit PIN!" };
     }

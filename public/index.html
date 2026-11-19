@@ -30,14 +30,18 @@
       </ul>
 
       <div class="nav-actions">
+        <div class="connection-status-pill" id="connectionStatusIndicator" title="Server Connection">
+          <span class="status-dot" id="connectionStatusDot" style="background-color: #22C55E;"></span>
+          <span class="status-label" id="connectionStatusLabel">Online</span>
+        </div>
         <button id="btnSoundToggle" class="btn btn-white btn-sm" onclick="app.toggleSound()" title="Toggle Sound FX">
-          🔊 Sound On
+          🔊 <span class="hide-mobile">Sound On</span>
         </button>
         <button class="btn btn-yellow btn-sm" onclick="app.openJoinModal()">
-          🎮 Enter PIN
+          🎮 <span class="hide-mobile">Enter PIN</span>
         </button>
         <button class="btn btn-pink btn-sm" onclick="app.openAiModal()">
-          ✨ AI Quiz
+          ✨ <span class="hide-mobile">AI Quiz</span>
         </button>
       </div>
     </div>
@@ -104,9 +108,9 @@
             </div>
           </div>
           <form class="pin-form" onsubmit="app.handleQuickJoin(event)">
-            <input type="text" id="quickPinInput" class="pin-input" placeholder="6-DIGIT PIN" maxlength="6" pattern="[0-9]{6}" required>
-            <input type="text" id="quickNameInput" class="form-input" style="width: 160px; padding: 10px 14px;" placeholder="Your Nickname" maxlength="15" required>
-            <button type="submit" class="btn btn-green">Join Game ➔</button>
+            <input type="tel" inputmode="numeric" id="quickPinInput" class="pin-input" placeholder="6-DIGIT PIN" maxlength="6" autocomplete="off" required>
+            <input type="text" id="quickNameInput" class="form-input" style="width: 160px; padding: 10px 14px;" placeholder="Your Nickname" maxlength="15" autocomplete="nickname" required>
+            <button type="submit" id="btnQuickJoin" class="btn btn-green">Join Game ➔</button>
           </form>
         </div>
       </div>
@@ -190,6 +194,18 @@
             </div>
             <div class="pin-display-huge" id="hostPinDisplay">000000</div>
             <div id="hostQuizTitle" style="font-size: 18px; font-weight: 800; margin-top: 4px;">Loading Quiz...</div>
+
+            <!-- Mobile Phone QR Code & Direct Join Helper -->
+            <div class="mobile-join-box" style="margin-top: 14px; background: rgba(255,255,255,0.8); border: 2.5px solid var(--border-color); border-radius: 12px; padding: 10px 14px; display: inline-flex; align-items: center; gap: 14px; box-shadow: 2px 2px 0 var(--border-color);">
+              <div id="hostQrCodeWrap" style="background:#fff; padding:4px; border:2px solid var(--border-color); border-radius:8px; width:72px; height:72px; display:flex; align-items:center; justify-content:center;">
+                <img id="hostQrCodeImg" src="" alt="Scan QR" style="width:100%; height:100%; object-fit:contain;">
+              </div>
+              <div>
+                <div style="font-size: 11px; font-weight: 900; text-transform: uppercase; color: #4B5563;">Mobile Phone Players:</div>
+                <div style="font-size: 13px; font-weight: 800;">Scan QR with camera or visit:</div>
+                <div id="hostMobileUrl" style="font-family: monospace; font-weight: 900; font-size: 14px; color: #18181B;">http://localhost:3000</div>
+              </div>
+            </div>
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
@@ -500,12 +516,12 @@
       <form onsubmit="app.handleModalJoin(event)">
         <div class="form-group">
           <label class="form-label">6-Digit Room PIN</label>
-          <input type="text" id="modalPinInput" class="pin-input" style="width: 100%;" placeholder="e.g. 482910" maxlength="6" pattern="[0-9]{6}" required>
+          <input type="tel" inputmode="numeric" id="modalPinInput" class="pin-input" style="width: 100%;" placeholder="e.g. 482910" maxlength="6" autocomplete="off" required>
         </div>
 
         <div class="form-group">
           <label class="form-label">Nickname</label>
-          <input type="text" id="modalNameInput" class="form-input" placeholder="Your Name" maxlength="15" required>
+          <input type="text" id="modalNameInput" class="form-input" placeholder="Your Name" maxlength="15" autocomplete="nickname" required>
         </div>
 
         <div class="form-group">

@@ -30,13 +30,22 @@ class SocketClient {
     this.socket.on('connect', () => {
       this.connected = true;
       console.log('⚡ Connected to Quiz Server with socket id:', this.socket.id);
+      this.updateConnectionStatus(true);
       this.emitInternal('connect', this.socket.id);
     });
 
     this.socket.on('disconnect', (reason) => {
       this.connected = false;
       console.warn('⚠️ Disconnected from Quiz Server:', reason);
+      this.updateConnectionStatus(false);
       this.emitInternal('disconnect', reason);
+    });
+
+    this.socket.on('connect_error', (err) => {
+      this.connected = false;
+      console.warn('⚠️ Socket connection error:', err.message);
+      this.updateConnectionStatus(false);
+      this.emitInternal('connect_error', err);
     });
 
     // Pass-through server events to app listeners
@@ -86,13 +95,75 @@ class SocketClient {
     this.socket.emit(event, data, callback);
   }
 
+  updateConnectionStatus(isConnected) {
+    const dot = document.getElementById('connectionStatusDot');
+    const label = document.getElementById('connectionStatusLabel');
+    if (dot) {
+      dot.style.backgroundColor = isConnected ? '#22C55E' : '#EF4444';
+      dot.title = isConnected ? 'Connected to Quiz Server' : 'Disconnected / Connecting...';
+    }
+    if (label) {
+      label.innerText = isConnected ? 'Online' : 'Offline';
+    }
+  }
+
+  waitForConnection(timeoutMs = 5000) {
+    return new Promise((resolve) => {
+      if (this.socket && this.connected) return resolve(true);
+
+      const timer = setTimeout(() => {
+        resolve(this.connected);
+      }, timeoutMs);
+
+      if (this.socket) {
+        this.socket.once('connect', () => {
+          clearTimeout(timer);
+          resolve(true);
+        });
+      } else {
+        this.connect();
+      }
+    });
+  }
+
   // Convenience methods
   registerHost(roomPin, hostSecret) {
     this.emit('host:register', { roomPin, hostSecret });
   }
 
-  joinRoom(roomPin, playerName, avatar, callback) {
-    this.emit('player:join', { roomPin, playerName, avatar }, callback);
+  async joinRoom(roomPin, playerName, avatar, callback) {
+    const cleanPin = String(roomPin || '').replace(/\D/g, '').trim();
+
+    // Ensure socket is connected before emitting
+    if (!this.connected) {
+      console.log('Waiting for socket to connect before joining room...');
+      const isConnected = await this.waitForConnection(5000);
+      if (!isConnected) {
+        if (typeof callback === 'function') {
+          callback({
+            success: false,
+            error: "Unable to connect to quiz server. Please check your network and refresh."
+          });
+        }
+        return;
+      }
+    }
+
+    let handled = false;
+    const fallbackTimer = setTimeout(() => {
+      if (!handled) {
+        handled = true;
+        console.warn('joinRoom acknowledgment timed out.');
+      }
+    }, 6000);
+
+    this.emit('player:join', { roomPin: cleanPin, playerName, avatar }, (res) => {
+      if (!handled) {
+        handled = true;
+        clearTimeout(fallbackTimer);
+        if (typeof callback === 'function') callback(res);
+      }
+    });
   }
 
   startQuiz(roomPin) {

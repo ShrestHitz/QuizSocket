@@ -139,6 +139,56 @@ app.get('/api/rooms/:pin', (req, res) => {
   });
 });
 
+// REST endpoint to pre-verify room join
+app.post('/api/rooms/join', (req, res) => {
+  const { roomPin } = req.body;
+  const room = roomManager.getRoom(roomPin);
+  if (!room) {
+    return res.status(404).json({ success: false, error: "Quiz room not found. Check the 6-digit PIN!" });
+  }
+  if (room.status === "FINISHED") {
+    return res.status(400).json({ success: false, error: "This quiz session has already completed." });
+  }
+
+  res.json({
+    success: true,
+    roomPin: room.id,
+    title: room.quiz.title,
+    status: room.status,
+    totalPlayers: room.players.length
+  });
+});
+
+// Get local network LAN IP so mobile phones can connect
+app.get('/api/network-info', (req, res) => {
+  const os = require('os');
+  const ifaces = os.networkInterfaces();
+  let candidateIp = 'localhost';
+
+  for (const name in ifaces) {
+    for (const d of ifaces[name]) {
+      if (d.family === 'IPv4' && !d.internal) {
+        // Prioritize Wi-Fi or WLAN
+        if (name.toLowerCase().includes('wi-fi') || name.toLowerCase().includes('wireless') || name.toLowerCase().includes('wlan')) {
+          candidateIp = d.address;
+          break;
+        } else if (candidateIp === 'localhost') {
+          if (!name.toLowerCase().includes('vethernet') && !name.toLowerCase().includes('virtual')) {
+            candidateIp = d.address;
+          }
+        }
+      }
+    }
+  }
+
+  res.json({
+    success: true,
+    localIp: candidateIp,
+    port: PORT,
+    lanUrl: `http://${candidateIp}:${PORT}`
+  });
+});
+
 // Catch-all route to serve the SPA
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

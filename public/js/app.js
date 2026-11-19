@@ -211,7 +211,7 @@ class QuizApp {
     }
   }
 
-  enterHostLobby(roomPin, hostSecret, quiz) {
+  async enterHostLobby(roomPin, hostSecret, quiz) {
     this.role = 'host';
     this.roomPin = roomPin;
     this.hostSecret = hostSecret;
@@ -224,6 +224,32 @@ class QuizApp {
     document.getElementById('hostPinDisplay').innerText = roomPin;
     document.getElementById('hostQuizTitle').innerText = quiz.title;
     document.getElementById('hostJoinUrl').innerText = window.location.origin;
+
+    // Detect LAN IP so mobile phones can connect
+    let mobileBaseUrl = window.location.origin;
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      try {
+        const netRes = await fetch('/api/network-info');
+        const netData = await netRes.json();
+        if (netData.success && netData.localIp && netData.localIp !== 'localhost') {
+          mobileBaseUrl = netData.lanUrl;
+        }
+      } catch (err) {
+        console.warn('Could not fetch network info:', err);
+      }
+    }
+
+    const hostMobileEl = document.getElementById('hostMobileUrl');
+    if (hostMobileEl) {
+      hostMobileEl.innerText = mobileBaseUrl;
+    }
+
+    // Generate scannable QR Code
+    const qrImg = document.getElementById('hostQrCodeImg');
+    if (qrImg) {
+      const fullJoinUrl = `${mobileBaseUrl}?pin=${roomPin}`;
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(fullJoinUrl)}`;
+    }
 
     this.showView('view-host-lobby');
   }
@@ -314,40 +340,101 @@ class QuizApp {
   handleQuickJoin(e) {
     e.preventDefault();
     soundManager.playClick();
-    const pin = document.getElementById('quickPinInput').value.trim();
-    const name = document.getElementById('quickNameInput').value.trim();
+    const pin = document.getElementById('quickPinInput').value;
+    const name = document.getElementById('quickNameInput').value;
     this.joinGame(pin, name, 'avatar-1');
   }
 
   handleModalJoin(e) {
     e.preventDefault();
     soundManager.playClick();
-    const pin = document.getElementById('modalPinInput').value.trim();
-    const name = document.getElementById('modalNameInput').value.trim();
+    const pin = document.getElementById('modalPinInput').value;
+    const name = document.getElementById('modalNameInput').value;
     const avatar = document.getElementById('selectedAvatarId').value;
     this.joinGame(pin, name, avatar);
   }
 
-  joinGame(pin, playerName, avatar) {
-    socketClient.joinRoom(pin, playerName, avatar, (res) => {
-      if (res && res.success) {
-        this.role = 'player';
-        this.roomPin = pin;
-        this.player = res.player;
+  setJoinLoadingState(isLoading) {
+    const qBtn = document.getElementById('btnQuickJoin');
+    const mBtn = document.querySelector('#modalJoin button[type="submit"]');
+    if (qBtn) {
+      qBtn.disabled = isLoading;
+      qBtn.innerText = isLoading ? '⏳ Joining...' : 'Join Game ➔';
+    }
+    if (mBtn) {
+      mBtn.disabled = isLoading;
+      mBtn.innerText = isLoading ? '⏳ Joining...' : 'Join Arena ➔';
+    }
+  }
 
-        this.closeModals();
+  async joinGame(pin, playerName, avatar) {
+    const cleanPin = String(pin || '').replace(/\D/g, '').trim();
+    const cleanName = String(playerName || '').trim();
 
-        // Update player lobby UI
-        document.getElementById('playerLobbyPinDisplay').innerText = pin;
-        document.getElementById('playerLobbyQuizTitle').innerText = res.quizTitle || "Multiplayer Quiz";
-        document.getElementById('playerNicknameDisplay').innerText = res.player.name;
-        document.getElementById('playerAvatarPreview').innerHTML = getAvatarSvg(res.player.avatar);
+    if (!cleanPin || cleanPin.length !== 6) {
+      alert("Please enter a valid 6-digit Quiz PIN (e.g. 416791).");
+      return;
+    }
 
-        this.showView('view-player-lobby');
-      } else {
-        alert(res ? res.error : "Failed to join quiz room.");
+    if (!cleanName) {
+      alert("Please enter a nickname to join.");
+      return;
+    }
+
+    this.setJoinLoadingState(true);
+
+    try {
+      // 1. Verify room exists via REST API first (handles fast 404 feedback)
+      const res = await fetch(`/api/rooms/${cleanPin}`);
+      const data = await res.json();
+
+      if (!data.success) {
+        this.setJoinLoadingState(false);
+        alert(`❌ ${data.error || 'Quiz room not found!'}\n\nMake sure the host has created the game and check the 6-digit code.`);
+        return;
       }
-    });
+
+      // 2. Connect and join via Socket.IO
+      await socketClient.joinRoom(cleanPin, cleanName, avatar, (joinRes) => {
+        this.setJoinLoadingState(false);
+        if (joinRes && joinRes.success) {
+          this.role = 'player';
+          this.roomPin = cleanPin;
+          this.player = joinRes.player;
+
+          this.closeModals();
+
+          // Update player lobby UI
+          document.getElementById('playerLobbyPinDisplay').innerText = cleanPin;
+          document.getElementById('playerLobbyQuizTitle').innerText = joinRes.quizTitle || "Multiplayer Quiz";
+          document.getElementById('playerNicknameDisplay').innerText = joinRes.player.name;
+          document.getElementById('playerAvatarPreview').innerHTML = getAvatarSvg(joinRes.player.avatar);
+
+          this.showView('view-player-lobby');
+        } else {
+          alert(joinRes ? joinRes.error : "Failed to join quiz room.");
+        }
+      });
+    } catch (err) {
+      console.warn("REST check failed, attempting direct socket join:", err);
+      // Fallback direct socket join attempt
+      await socketClient.joinRoom(cleanPin, cleanName, avatar, (joinRes) => {
+        this.setJoinLoadingState(false);
+        if (joinRes && joinRes.success) {
+          this.role = 'player';
+          this.roomPin = cleanPin;
+          this.player = joinRes.player;
+          this.closeModals();
+          document.getElementById('playerLobbyPinDisplay').innerText = cleanPin;
+          document.getElementById('playerLobbyQuizTitle').innerText = joinRes.quizTitle || "Multiplayer Quiz";
+          document.getElementById('playerNicknameDisplay').innerText = joinRes.player.name;
+          document.getElementById('playerAvatarPreview').innerHTML = getAvatarSvg(joinRes.player.avatar);
+          this.showView('view-player-lobby');
+        } else {
+          alert(joinRes ? joinRes.error : "Unable to reach quiz server. Please check your connection and refresh.");
+        }
+      });
+    }
   }
 
   copyRoomLink() {
