@@ -633,6 +633,10 @@ class QuizApp {
     this.isAnswerLocked = false;
     soundManager.playClick();
 
+    // Clean up any remaining countdown overlay immediately
+    const existingOverlay = document.getElementById('countdownOverlay');
+    if (existingOverlay) existingOverlay.remove();
+
     // Show arena view
     this.showView('view-arena');
 
@@ -651,36 +655,39 @@ class QuizApp {
       hostControls.style.display = this.role === 'host' ? 'flex' : 'none';
     }
 
-    // Render Options
+    // Render Options - Only disable for the Host projector view!
+    const isHost = (this.role === 'host');
     const grid = document.getElementById('arenaOptionsGrid');
     const letters = ['A', 'B', 'C', 'D'];
 
     grid.innerHTML = data.options.map((opt, idx) => `
-      <button class="option-btn" id="optionBtn-${idx}" onclick="app.submitStudentAnswer(${idx})" ${this.role === 'host' ? 'disabled' : ''}>
+      <button class="option-btn" id="optionBtn-${idx}" onclick="app.submitStudentAnswer(${idx})" ${isHost ? 'disabled' : ''}>
         <div class="option-key key-${idx}">${letters[idx]}</div>
         <div class="option-label">${opt}</div>
       </button>
     `).join('');
 
-    // Start synchronized timer
-    this.startSynchronizedTimer(data.deadline, data.timeLimit);
+    // Start clock-skew-safe countdown timer
+    this.startSynchronizedTimer(data.timeLimit || 20);
   }
 
-  startSynchronizedTimer(deadline, totalSeconds) {
+  startSynchronizedTimer(totalSeconds) {
     if (this.timerInterval) clearInterval(this.timerInterval);
 
     const bar = document.getElementById('timerBarFill');
     const clock = document.getElementById('timerClock');
+    const totalDurationMs = (totalSeconds || 20) * 1000;
+    const startTime = Date.now();
 
     const update = () => {
-      const now = Date.now();
-      const diffMs = Math.max(0, deadline - now);
+      const elapsed = Date.now() - startTime;
+      const diffMs = Math.max(0, totalDurationMs - elapsed);
       const remainingSeconds = Math.ceil(diffMs / 1000);
       this.timeRemaining = diffMs / 1000;
 
       if (clock) clock.innerText = remainingSeconds;
 
-      const pct = Math.max(0, Math.min(100, (diffMs / (totalSeconds * 1000)) * 100));
+      const pct = Math.max(0, Math.min(100, (diffMs / totalDurationMs) * 100));
       if (bar) {
         bar.style.width = `${pct}%`;
         bar.classList.toggle('warning', pct < 50 && pct >= 25);
@@ -706,20 +713,35 @@ class QuizApp {
   }
 
   submitStudentAnswer(answerIndex) {
-    if (this.role !== 'player' || this.isAnswerLocked) return;
+    // Only block if host or already answered this round
+    if (this.role === 'host') return;
+    if (this.isAnswerLocked) return;
 
     this.selectedAnswer = answerIndex;
     this.isAnswerLocked = true;
     soundManager.playClick();
 
-    // Visual selection
+    // Visual selection feedback immediately
     const btn = document.getElementById(`optionBtn-${answerIndex}`);
-    if (btn) btn.classList.add('selected');
+    if (btn) {
+      btn.classList.add('selected');
+      btn.style.backgroundColor = '#FEF08A';
+      btn.style.borderColor = '#18181B';
+    }
 
     this.lockAllOptions();
 
+    // Safely resolve player id and room pin
+    const playerId = (this.player && this.player.id)
+      ? this.player.id
+      : (socketClient.socket ? socketClient.socket.id : 'player-' + Date.now());
+
+    const pinToUse = this.roomPin || (this.currentQuestion ? this.currentQuestion.roomPin : null);
+
+    console.log(`Submitting answer for option ${answerIndex}, player: ${playerId}, room: ${pinToUse}`);
+
     // Emit to server
-    socketClient.submitAnswer(this.roomPin, this.player.id, answerIndex, this.timeRemaining);
+    socketClient.submitAnswer(pinToUse, playerId, answerIndex, this.timeRemaining);
   }
 
   handleAnswerConfirmed(data) {

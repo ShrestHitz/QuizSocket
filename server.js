@@ -258,7 +258,16 @@ io.on('connection', (socket) => {
 
   // Student submits an answer
   socket.on('quiz:submit_answer', ({ roomPin, playerId, answerIndex, timeRemaining }, callback) => {
-    const result = roomManager.submitAnswer(roomPin, playerId, answerIndex, timeRemaining);
+    let pin = roomPin;
+    if (!pin) {
+      for (const [rPin, r] of roomManager.rooms.entries()) {
+        if (r.players.some(p => p.socketId === socket.id || p.id === playerId)) {
+          pin = rPin;
+          break;
+        }
+      }
+    }
+    const result = roomManager.submitAnswer(pin, playerId || socket.id, answerIndex, timeRemaining);
     if (typeof callback === 'function') callback(result);
   });
 
