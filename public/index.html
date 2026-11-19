@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CreateMyTest — Real-Time Multiplayer Quiz Arena</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+  <!-- Socket.IO client (CDN with local fallback) -->
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\/script>'); }</script>
+</head>
+<body>
+
+  <!-- Confetti Canvas for Winners -->
+  <canvas id="confettiCanvas"></canvas>
+
+  <!-- ======================== NAVIGATION ======================== -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand-logo" onclick="app.showHome()">
+        <div class="brand-icon">C</div>
+        <div class="brand-text">CreateMyTest</div>
+      </div>
+
+      <ul class="nav-links">
+        <li><a class="nav-link" onclick="app.scrollToSection('kinds-section')">Kind of Quizzes</a></li>
+        <li><a class="nav-link" onclick="app.scrollToSection('quizzes-section')">Explore Quizzes</a></li>
+        <li><a class="nav-link" onclick="app.openAiModal()">AI Document Converter</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <button id="btnSoundToggle" class="btn btn-white btn-sm" onclick="app.toggleSound()" title="Toggle Sound FX">
+          🔊 Sound On
+        </button>
+        <button class="btn btn-yellow btn-sm" onclick="app.openJoinModal()">
+          🎮 Enter PIN
+        </button>
+        <button class="btn btn-pink btn-sm" onclick="app.openAiModal()">
+          ✨ AI Quiz
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ======================== MAIN CONTAINER ======================== -->
+  <main id="app-content">
+
+    <!-- VIEW 1: HOME LANDING (Inspired by attached image) -->
+    <section id="view-home" class="view-panel active">
+      <!-- HERO SECTION -->
+      <div class="hero-section">
+        <div class="hero-content">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="badge-tag badge-free">Free</span>
+            <span class="badge-tag" style="background:#E0F2FE;">v2.6 Multi-Player</span>
+          </div>
+
+          <h1 class="hero-title">
+            Best <span class="highlight-pink">AI Platform</span> To Convert Documents To Quiz Instantly
+          </h1>
+
+          <p class="hero-subtitle">
+            With CreateMyTest, teachers and students connect in real-time. Broadcast questions simultaneously, collect instant responses, manage countdown timeouts, and stream live interactive leaderboards.
+          </p>
+
+          <div class="hero-cta-group">
+            <button class="btn btn-pink btn-lg" onclick="app.openAiModal()">
+              ✨ Get Started
+            </button>
+            <button class="btn btn-white btn-lg" onclick="app.openJoinModal()">
+              🚀 Join with PIN
+            </button>
+            <div class="stamp-badge">
+              <span>100% LIVE</span>
+              <span>NETWORK</span>
+              <span>2026</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <div class="hero-illustration-card">
+            <div class="floating-free-tag">Instant Host</div>
+            <div id="heroAvatarSvg" class="hero-illustration-svg">
+              <!-- Rendered via JS -->
+            </div>
+            <div class="floating-players-pill">
+              <span style="color:#22C55E; font-size:16px;">●</span>
+              <span>Real-Time WebSockets</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- QUICK PIN JOIN BAR -->
+      <div class="quick-join-bar">
+        <div class="pin-box-card">
+          <div class="pin-box-left">
+            <div class="pin-box-icon">⚡</div>
+            <div>
+              <h3 style="font-size: 18px; margin-bottom: 2px;">Have a Game PIN?</h3>
+              <p style="font-size: 13px; color: var(--text-muted); font-weight: 600;">Join an ongoing multiplayer quiz room immediately</p>
+            </div>
+          </div>
+          <form class="pin-form" onsubmit="app.handleQuickJoin(event)">
+            <input type="text" id="quickPinInput" class="pin-input" placeholder="6-DIGIT PIN" maxlength="6" pattern="[0-9]{6}" required>
+            <input type="text" id="quickNameInput" class="form-input" style="width: 160px; padding: 10px 14px;" placeholder="Your Nickname" maxlength="15" required>
+            <button type="submit" class="btn btn-green">Join Game ➔</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- "KIND OF QUIZZES" 2x2 GRID (From the Screenshot) -->
+      <section id="kinds-section" class="kinds-section">
+        <h2 class="kinds-title">Kind of Quizzes</h2>
+        <div class="kinds-grid">
+          <!-- Card 1: Multiple Choice -->
+          <div class="kind-card" onclick="app.filterOrStartQuizType('multiple-choice')">
+            <div class="kind-icon-squircle icon-pink">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><circle cx="9" cy="10" r="1"></circle><circle cx="12" cy="10" r="1"></circle><circle cx="15" cy="10" r="1"></circle></svg>
+            </div>
+            <div class="kind-info">
+              <h3 class="kind-name">Multiple Choice</h3>
+              <p class="kind-desc">Single or multi-option questions with high-speed response bonus and distractors.</p>
+            </div>
+          </div>
+
+          <!-- Card 2: Fill in the blank -->
+          <div class="kind-card" onclick="app.filterOrStartQuizType('fill-blank')">
+            <div class="kind-icon-squircle icon-green">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            </div>
+            <div class="kind-info">
+              <h3 class="kind-name">Fill in the blank</h3>
+              <p class="kind-desc">Complete missing networking terms, protocol names, port numbers and formulas.</p>
+            </div>
+          </div>
+
+          <!-- Card 3: Matching -->
+          <div class="kind-card" onclick="app.filterOrStartQuizType('matching')">
+            <div class="kind-icon-squircle icon-orange">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+            </div>
+            <div class="kind-info">
+              <h3 class="kind-name">Matching</h3>
+              <p class="kind-desc">Match OSI layers to protocols, status codes to meanings, and ports to services.</p>
+            </div>
+          </div>
+
+          <!-- Card 4: True / False -->
+          <div class="kind-card" onclick="app.filterOrStartQuizType('true-false')">
+            <div class="kind-icon-squircle icon-purple">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+            </div>
+            <div class="kind-info">
+              <h3 class="kind-name">True / False</h3>
+              <p class="kind-desc">Rapid-fire fact verification for high streaks and intense timed competition.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FEATURED QUIZ PACKS -->
+      <section id="quizzes-section" class="quizzes-section">
+        <div class="section-header-row">
+          <div>
+            <span class="badge-tag" style="background:var(--color-yellow);">Curated Library</span>
+            <h2 style="font-size: 32px; margin-top: 6px;">Computer Networking & Tech Quizzes</h2>
+          </div>
+          <button class="btn btn-purple" onclick="app.openAiModal()">
+            ✨ Convert Document / Notes to Quiz
+          </button>
+        </div>
+
+        <div id="quizzesGrid" class="quizzes-grid">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+    </section>
+
+    <!-- VIEW 2: HOST LOBBY (Teacher/Host Waiting Room) -->
+    <section id="view-host-lobby" class="view-panel" style="display:none;">
+      <div class="lobby-container">
+        <!-- Big Header with Room PIN -->
+        <div class="lobby-header-card">
+          <div>
+            <div style="font-size: 14px; font-weight: 800; text-transform: uppercase; color: var(--text-dark);">
+              Join at <span style="text-decoration: underline;" id="hostJoinUrl">http://localhost:3000</span>
+            </div>
+            <div class="pin-display-huge" id="hostPinDisplay">000000</div>
+            <div id="hostQuizTitle" style="font-size: 18px; font-weight: 800; margin-top: 4px;">Loading Quiz...</div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
+            <button class="btn btn-pink btn-lg" onclick="app.hostStartQuiz()">
+              🚀 Start Game Now
+            </button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-white btn-sm" onclick="app.addBotsToRoom(3)">
+                🤖 Add 3 Bots
+              </button>
+              <button class="btn btn-white btn-sm" onclick="app.removeBotsFromRoom()">
+                Clear Bots
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lobby Content Grid -->
+        <div class="lobby-grid">
+          <div class="neo-card players-roster-card">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <h3 style="font-size: 20px;">Connected Students</h3>
+                <span id="playerCountBadge" class="badge-tag badge-free">0 Joined</span>
+              </div>
+              <span style="font-size: 13px; color: var(--text-muted); font-weight: 700;">Waiting for players...</span>
+            </div>
+
+            <div id="rosterList" class="roster-grid">
+              <!-- Player chips populated via JS -->
+            </div>
+          </div>
+
+          <!-- Host Side Panel -->
+          <div class="neo-card" style="display: flex; flex-direction: column; gap: 18px;">
+            <h4 style="font-size: 17px; font-weight: 800;">Host Controls & Tips</h4>
+            <div style="font-size: 13px; color: var(--text-muted); line-height: 1.5; font-weight: 600;">
+              <p>• Display this screen on the classroom projector or stream it on Google Meet / Zoom.</p>
+              <p style="margin-top: 8px;">• Students can open the site on phone or laptop and enter the 6-digit PIN.</p>
+              <p style="margin-top: 8px;">• Test solo? Click <strong>"Add 3 Bots"</strong> to immediately simulate live multiplayer competition!</p>
+            </div>
+
+            <hr style="border: 1px dashed #E4E4E7;">
+
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <button class="btn btn-dark" onclick="app.copyRoomLink()">
+                📋 Copy Invite Link
+              </button>
+              <button class="btn btn-white" onclick="app.leaveRoom()">
+                Leave Room
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: STUDENT LOBBY (Player Waiting Room) -->
+    <section id="view-player-lobby" class="view-panel" style="display:none;">
+      <div class="lobby-container" style="max-width: 600px;">
+        <div class="neo-card-lg neo-card" style="text-align: center;">
+          <span class="badge-tag badge-free" style="margin-bottom: 12px;">You're In!</span>
+          <h2 style="font-size: 28px; margin-bottom: 6px;" id="playerLobbyQuizTitle">Networking Quiz</h2>
+          <p style="font-size: 15px; color: var(--text-muted); font-weight: 700;">
+            Room PIN: <span id="playerLobbyPinDisplay" style="font-family: monospace; font-size: 18px; color: var(--text-dark);">------</span>
+          </p>
+
+          <div style="margin: 28px auto; width: 130px; height: 130px;" id="playerAvatarPreview">
+            <!-- Avatar rendered here -->
+          </div>
+
+          <h3 style="font-size: 24px; font-weight: 900;" id="playerNicknameDisplay">Player</h3>
+          <p style="font-size: 14px; color: var(--text-muted); margin-top: 4px; font-weight: 600;">
+            Waiting for host to start the quiz...
+          </p>
+
+          <div style="margin-top: 24px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <div class="stamp-badge" style="width: 60px; height: 60px; font-size: 8px;">
+              READY TO PLAY
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: LIVE QUIZ ARENA (Host & Student Views) -->
+    <section id="view-arena" class="view-panel" style="display:none;">
+      <div class="arena-container">
+        <!-- Top status bar -->
+        <div class="arena-top-bar">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="badge-tag" id="arenaQuestionProgress" style="background:var(--color-yellow); font-size: 14px;">Question 1 / 8</span>
+            <span class="badge-tag" id="arenaResponseCounter" style="background:#FFFFFF; font-size: 14px;">⚡ 0 / 0 Answered</span>
+          </div>
+
+          <!-- Synchronized Countdown Timer -->
+          <div class="timer-container">
+            <span style="font-size: 18px;">⏱️</span>
+            <div class="timer-bar-wrap">
+              <div id="timerBarFill" class="timer-bar-fill"></div>
+            </div>
+            <div id="timerClock" class="timer-clock">20</div>
+          </div>
+        </div>
+
+        <!-- Question Box -->
+        <div class="question-box">
+          <div class="question-badge-top" id="arenaQuestionTypeBadge">Multiple Choice</div>
+          <h2 class="question-text" id="arenaQuestionText">Loading question...</h2>
+        </div>
+
+        <!-- Option Grid -->
+        <div class="options-grid" id="arenaOptionsGrid">
+          <!-- 4 option buttons rendered dynamically -->
+        </div>
+
+        <!-- Host Quick Controls (Only visible to host) -->
+        <div id="hostArenaControls" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px;">
+          <button class="btn btn-white btn-sm" onclick="app.hostForceTimeout()">
+            ⏩ Advance / Reveal Answers
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 5: QUESTION RESULTS & DISTRIBUTION -->
+    <section id="view-results" class="view-panel" style="display:none;">
+      <div class="arena-container">
+        <div class="results-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <span class="badge-tag badge-free">Round Results</span>
+              <h2 style="font-size: 26px; margin-top: 6px;" id="resultsQuestionHeadline">Correct Answer Revealed</h2>
+            </div>
+
+            <!-- Host Next Button -->
+            <div id="hostResultsControls" style="display:flex; gap:10px;">
+              <button class="btn btn-yellow" onclick="app.hostShowLeaderboard()">
+                🏆 Show Leaderboard
+              </button>
+              <button class="btn btn-pink" onclick="app.hostNextQuestion()">
+                Next Question ➔
+              </button>
+            </div>
+          </div>
+
+          <!-- Student personal feedback box (hidden on host screen) -->
+          <div id="studentPersonalFeedback" style="display:none; margin: 20px 0; padding: 16px 20px; border-radius: 12px; border: 2.5px solid #18181B;">
+            <!-- Rendered by JS -->
+          </div>
+
+          <!-- Answer distribution chart -->
+          <h4 style="font-size: 15px; font-weight: 800; margin-top: 24px; text-transform: uppercase;">
+            Live Response Distribution
+          </h4>
+          <div class="distribution-chart" id="distributionBars">
+            <!-- 4 bars rendered by JS -->
+          </div>
+
+          <!-- Explanation box -->
+          <div class="explanation-banner" id="explanationBox">
+            <span style="font-size: 24px;">💡</span>
+            <div>
+              <strong style="display: block; font-size: 15px; margin-bottom: 4px;">Explanation & Protocol Context</strong>
+              <p id="explanationText" style="font-size: 14px; color: var(--text-dark); line-height: 1.5; font-weight: 600;">
+                Explanation loading...
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 6: LIVE LEADERBOARD -->
+    <section id="view-leaderboard" class="view-panel" style="display:none;">
+      <div class="arena-container" style="max-width: 800px;">
+        <div class="neo-card-lg neo-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+            <div>
+              <span class="badge-tag" style="background:var(--color-pink); color:#fff;">Live Standings</span>
+              <h2 style="font-size: 32px; margin-top: 4px;">Leaderboard</h2>
+            </div>
+
+            <div id="hostLeaderboardControls" style="display: flex; gap: 10px;">
+              <button class="btn btn-pink" onclick="app.hostNextQuestion()" id="btnLeaderboardNext">
+                Next Question ➔
+              </button>
+            </div>
+          </div>
+
+          <div class="leaderboard-list" id="leaderboardItems">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 7: FINAL PODIUM CELEBRATION -->
+    <section id="view-podium" class="view-panel" style="display:none;">
+      <div class="arena-container" style="max-width: 860px; text-align: center;">
+        <div class="neo-card-lg neo-card">
+          <span class="badge-tag badge-free" style="font-size: 14px; padding: 6px 18px;">Quiz Completed</span>
+          <h2 style="font-size: clamp(32px, 5vw, 48px); margin: 8px 0;" id="podiumQuizTitle">Champions Arena</h2>
+          <p style="font-size: 16px; color: var(--text-muted); font-weight: 700;">Outstanding performance across all rounds!</p>
+
+          <!-- 3-Pillar Podium -->
+          <div class="podium-container" id="podiumDisplay">
+            <!-- Rendered by JS -->
+          </div>
+
+          <!-- Full standings table -->
+          <div style="margin-top: 36px; text-align: left;">
+            <h3 style="font-size: 20px; margin-bottom: 14px;">Complete Standings</h3>
+            <div class="leaderboard-list" id="finalStandingsList">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+
+          <div style="margin-top: 30px; display: flex; justify-content: center; gap: 14px;">
+            <button class="btn btn-pink btn-lg" onclick="app.showHome()">
+              🏠 Back to Home
+            </button>
+            <button class="btn btn-white btn-lg" onclick="app.exportQuizSummary()">
+              📥 Export Results (CSV)
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======================== MODALS ======================== -->
+
+  <!-- MODAL: AI DOCUMENT-TO-QUIZ GENERATOR -->
+  <div id="modalAi" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="badge-tag" style="background:var(--color-pink); color:#fff;">AI Generator</span>
+          <h3 style="font-size: 22px;">Convert Document to Quiz</h3>
+        </div>
+        <button class="modal-close-btn" onclick="app.closeModals()">✕</button>
+      </div>
+
+      <p style="font-size: 14px; color: var(--text-muted); font-weight: 600; margin-bottom: 18px;">
+        Paste your course notes, article, or documentation below. The AI parses concepts into Multiple Choice, True/False, and timed challenge questions!
+      </p>
+
+      <!-- Sample Templates Quick Buttons -->
+      <div style="margin-bottom: 14px;">
+        <span style="font-size: 12px; font-weight: 800; text-transform: uppercase;">Load Sample Note:</span>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;">
+          <button class="btn btn-white btn-sm" onclick="app.loadAiSample('osi')">OSI 7-Layers Note</button>
+          <button class="btn btn-white btn-sm" onclick="app.loadAiSample('tcp')">TCP vs UDP Handshake</button>
+          <button class="btn btn-white btn-sm" onclick="app.loadAiSample('dns')">DNS & HTTP/3 Overview</button>
+        </div>
+      </div>
+
+      <form onsubmit="app.handleAiGenerate(event)">
+        <div class="form-group">
+          <label class="form-label">Quiz Title</label>
+          <input type="text" id="aiQuizTitle" class="form-input" placeholder="e.g. Computer Networks Midterm Review" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Document / Notes Content</label>
+          <textarea id="aiQuizText" class="form-textarea" placeholder="Paste study guide, paragraphs, protocol definitions, port numbers..." required></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="form-group">
+            <label class="form-label">Difficulty</label>
+            <select id="aiQuizDifficulty" class="form-select">
+              <option value="Medium">Medium</option>
+              <option value="Easy">Easy</option>
+              <option value="Hard">Hard / Advanced</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Question Style</label>
+            <select id="aiQuizType" class="form-select">
+              <option value="mixed">Mixed (MCQ + True/False)</option>
+              <option value="multiple-choice">Multiple Choice Only</option>
+              <option value="true-false">True / False Only</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+          <button type="button" class="btn btn-white" onclick="app.closeModals()">Cancel</button>
+          <button type="submit" id="btnAiSubmit" class="btn btn-pink">
+            ✨ Generate & Host Quiz
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ENTER ROOM PIN -->
+  <div id="modalJoin" class="modal-overlay">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="font-size: 22px;">Join Multiplayer Quiz</h3>
+        <button class="modal-close-btn" onclick="app.closeModals()">✕</button>
+      </div>
+
+      <form onsubmit="app.handleModalJoin(event)">
+        <div class="form-group">
+          <label class="form-label">6-Digit Room PIN</label>
+          <input type="text" id="modalPinInput" class="pin-input" style="width: 100%;" placeholder="e.g. 482910" maxlength="6" pattern="[0-9]{6}" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nickname</label>
+          <input type="text" id="modalNameInput" class="form-input" placeholder="Your Name" maxlength="15" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Choose Avatar</label>
+          <div id="modalAvatarPicker" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <!-- Avatar buttons injected here -->
+          </div>
+          <input type="hidden" id="selectedAvatarId" value="avatar-1">
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+          <button type="button" class="btn btn-white" onclick="app.closeModals()">Cancel</button>
+          <button type="submit" class="btn btn-green">Join Arena ➔</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT MODULES -->
+  <script src="/js/avatars.js"></script>
+  <script src="/js/audio.js"></script>
+  <script src="/js/socketClient.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
